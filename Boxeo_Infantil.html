@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -433,6 +434,11 @@
   ::-webkit-scrollbar-thumb { background: var(--orange-dim); }
   ::-webkit-scrollbar-thumb:hover { background: var(--orange); }
 
+  /* SYNC INDICATOR */
+  #sync-indicator {
+    transition: opacity 2s ease;
+  }
+
   /* MANAGE STUDENTS */
   .student-manage-list { display: flex; flex-direction: column; gap: 6px; }
   .student-manage-item {
@@ -783,6 +789,7 @@
 
 <!-- DATE BAR -->
 <div class="date-bar" id="datebar">—</div>
+<div id="sync-indicator" style="background:#1a1a1a;color:#e85d04;text-align:center;padding:4px;font-family:'Bebas Neue';font-size:13px;letter-spacing:2px;opacity:1;transition:opacity 1s;">🔄 SINCRONIZANDO...</div>
 
 <!-- NAV -->
 <nav class="nav">
@@ -955,24 +962,76 @@
 <button id="install-btn" onclick="installApp()">📲 INSTALAR APP</button>
 
 
-<script>
-// ──────────────────────────────────────────────
-//  STATE & STORAGE
-// ──────────────────────────────────────────────
-const STORAGE_KEY = 'qe_boxeo_v1';
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-function loadState() {
+// ──────────────────────────────────────────────
+//  FIREBASE CONFIG
+// ──────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAd8eBzJoMCHJcDW98pSklpKPiPhVkGllw",
+  authDomain: "boxeo-infantil.firebaseapp.com",
+  projectId: "boxeo-infantil",
+  storageBucket: "boxeo-infantil.firebasestorage.app",
+  messagingSenderId: "1077492466585",
+  appId: "1:1077492466585:web:cb334569f1918ad2394908"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const STATE_DOC = doc(db, 'app', 'state');
+
+// ──────────────────────────────────────────────
+//  STATE & STORAGE (Firebase)
+// ──────────────────────────────────────────────
+let state = { students: [], attendance: [], trials: [] };
+let _saving = false;
+
+async function saveState() {
+  if (_saving) return;
+  _saving = true;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { students: [], attendance: [], trials: [] };
-  } catch(e) { return { students: [], attendance: [], trials: [] }; }
+    await setDoc(STATE_DOC, {
+      students: state.students,
+      attendance: state.attendance,
+      trials: state.trials,
+      updatedAt: new Date().toISOString()
+    });
+  } catch(e) {
+    console.error('Error guardando en Firebase:', e);
+    showToast('⚠ Error al guardar', true);
+  } finally {
+    _saving = false;
+  }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+// Listen for real-time changes from Firebase
+function startSync() {
+  onSnapshot(STATE_DOC, (snap) => {
+    if (snap.exists()) {
+      const data = snap.data();
+      state.students   = data.students   || [];
+      state.attendance = data.attendance || [];
+      state.trials     = data.trials     || [];
+    } else {
+      state = { students: [], attendance: [], trials: [] };
+    }
+    // Re-render everything
+    renderStudentTapList();
+    renderToday();
+    renderTrials();
+    renderStudentManager();
+    populateMonthSelector();
+    populateCuentasMonthSelector();
+    document.getElementById('sync-indicator').style.opacity = '0';
+  }, (err) => {
+    console.error('Error de sincronización:', err);
+    document.getElementById('sync-indicator').style.opacity = '1';
+    document.getElementById('sync-indicator').textContent = '⚠ SIN CONEXIÓN';
+  });
 }
-
-let state = loadState();
 
 // ──────────────────────────────────────────────
 //  DATE HELPERS
@@ -1525,13 +1584,11 @@ function closeModalOutside(e) {
 // ──────────────────────────────────────────────
 function init() {
   updateDateBar();
-  // Set today's date as default for trial form
   document.getElementById('trial-date').value = todayStr();
-  renderStudentTapList();
-  renderToday();
-  renderTrials();
-  renderStudentManager();
-  populateMonthSelector();
+  // Show loading state
+  document.getElementById('sync-indicator').style.opacity = '1';
+  document.getElementById('sync-indicator').textContent = '🔄 SINCRONIZANDO...';
+  startSync();
 }
 
 init();
