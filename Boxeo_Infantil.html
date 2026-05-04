@@ -962,11 +962,9 @@
 <button id="install-btn" onclick="installApp()">📲 INSTALAR APP</button>
 
 
-<!-- Firebase SDK -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
 // ──────────────────────────────────────────────
 //  FIREBASE CONFIG
 // ──────────────────────────────────────────────
@@ -979,9 +977,9 @@ const firebaseConfig = {
   appId: "1:1077492466585:web:cb334569f1918ad2394908"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const STATE_DOC = doc(db, 'app', 'state');
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const STATE_DOC = db.collection('app').doc('state');
 
 // ──────────────────────────────────────────────
 //  STATE & STORAGE (Firebase)
@@ -993,7 +991,7 @@ async function saveState() {
   if (_saving) return;
   _saving = true;
   try {
-    await setDoc(STATE_DOC, {
+    await STATE_DOC.set({
       students: state.students,
       attendance: state.attendance,
       trials: state.trials,
@@ -1009,7 +1007,7 @@ async function saveState() {
 
 // Listen for real-time changes from Firebase
 function startSync() {
-  onSnapshot(STATE_DOC, (snap) => {
+  STATE_DOC.onSnapshot((snap) => {
     if (snap.exists()) {
       const data = snap.data();
       state.students   = data.students   || [];
